@@ -1,0 +1,58 @@
+import cv2
+from cvzone.HandTrackingModule import HandDetector
+import socket
+
+width, height = 1280, 720
+
+cap = cv2.VideoCapture(0)
+cap.set(3, width)  # Genişlik
+cap.set(4, height)  # Yükseklik
+
+# El tespit edici oluştur
+handdetector = HandDetector(detectionCon=0.2)
+
+# UDP için soket oluştur
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+serverAddressPort = ("127.0.0.1", 355)
+
+
+while True:
+    success, img = cap.read()
+    if not success:
+        break
+
+    img = cv2.flip(img, 1)  # Aynalama
+    hands, img = handdetector.findHands(img, flipType=False)
+
+    desired_indices = [0, 4, 5, 9, 13, 17]
+
+    data_to_send = []
+    if hands:
+        for hand in hands:
+            lmlist = hand["lmList"]
+
+            if "left" in hand["type"].lower():  # Eğer el tipi "left" içeriyorsa
+                data_to_send.append("L")  # Sol el etiketi
+            else:
+                data_to_send.append("R")  # Sağ el etiketi
+
+            # El landmarks'larını göster
+            for index in desired_indices:
+                lm = lmlist[index]
+                x = lm[0] - width / 2
+                y = -1 * (lm[1] - height / 2)
+                data_to_send.extend([x, y])
+                sock.sendto(str.encode(str(data_to_send)), serverAddressPort)
+
+
+    # Görüntüyü göster
+    cv2.imshow("Image", img)
+
+    # 'q' tuşuna basıldığında döngüyü sonlandır
+    key = cv2.waitKey(10)
+    if key == ord("q"):
+        break
+
+# Kaynakları serbest bırak
+cap.release()
+cv2.destroyAllWindows()
